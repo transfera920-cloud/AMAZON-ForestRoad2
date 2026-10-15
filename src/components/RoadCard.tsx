@@ -117,32 +117,36 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
           </div>
         </div>
 
-        {/* 展開說明規則：直接點擊「林道名稱」展開/收合，名稱旁邊加小箭頭提示 */}
-        <div className="flex items-baseline justify-between gap-2 mt-1">
+        {/* 展開說明規則：直接點擊「林道名稱」或旁邊的小勾勾展開/收合說明 */}
+        <div className="flex items-center justify-between gap-2 mt-1">
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center gap-1.5 text-left group/title cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded-lg py-0.5 transition-colors"
-            title={isExpanded ? '點擊收合說明' : '點擊林道名稱展開說明'}
+            className={`inline-flex items-center gap-1.5 text-left cursor-pointer transition-all duration-150 ${
+              isExpanded
+                ? 'border border-emerald-500/70 bg-emerald-950/40 text-emerald-300 px-2.5 py-1 rounded-xl shadow-sm'
+                : 'px-1.5 py-0.5 rounded-lg hover:bg-slate-800/80 text-slate-100 hover:text-emerald-300'
+            }`}
+            title={isExpanded ? '點擊收合說明' : '點擊林道名稱或小勾勾展開說明'}
             aria-expanded={isExpanded}
           >
-            <h2 className="text-lg font-bold text-slate-100 group-hover/title:text-emerald-300 transition-colors tracking-tight">
+            <h2 className="text-lg font-bold tracking-tight">
               {road.name}
             </h2>
             <span
-              className="text-slate-400 group-hover/title:text-emerald-400 inline-flex items-center transition-transform duration-200"
+              className="inline-flex items-center transition-transform duration-200"
               aria-hidden="true"
             >
               {isExpanded ? (
-                <ChevronUp className="w-4 h-4 text-emerald-400" />
+                <ChevronUp className="w-4 h-4 text-emerald-400 shrink-0" />
               ) : (
-                <ChevronDown className="w-4 h-4 text-slate-400 group-hover/title:text-emerald-400" />
+                <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 shrink-0" />
               )}
             </span>
           </button>
 
-          <span className="text-[11px] text-slate-500 font-medium shrink-0 flex items-center gap-1">
-            <StatusIcon className="w-3 h-3 text-current" />
+          <span className="text-xs text-slate-400 font-medium shrink-0 flex items-center gap-1">
+            <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span>{road.status}</span>
           </span>
         </div>

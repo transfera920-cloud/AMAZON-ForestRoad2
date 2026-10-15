@@ -1,21 +1,1102 @@
 <!doctype html>
-<html lang="zh-TW">
+<html lang="zh-TW" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>台灣林道通行狀況 - 亞馬遜國家山岳協會</title>
-    <meta name="description" content="亞馬遜國家山岳協會林道通行狀況查詢工具，收錄林業及自然保育署官方列管 83 條林道最新通報資訊。" />
-    <meta property="og:title" content="台灣林道通行狀況 - 亞馬遜國家山岳協會" />
-    <meta property="og:description" content="亞馬遜國家山岳協會林道通行狀況查詢工具，收錄林業及自然保育署官方列管 83 條林道最新通報資訊。" />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>台灣林道即時通行狀態儀表板</title>
+    <meta name="description" content="農業部林業及自然保育署台灣林道通行狀態即時儀表板，串接 Cloudflare Worker 即時 API。" />
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['"Noto Sans TC"', 'system-ui', '-apple-system', 'sans-serif'],
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      .card-transition {
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #090d16;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #1e293b;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #334155;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: scale(0.97);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .animate-modal {
+        animation: fadeIn 0.18s ease-out forwards;
+      }
+    </style>
   </head>
-  <body class="bg-slate-950 text-slate-100 antialiased font-sans">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+
+  <body class="bg-slate-950 text-slate-100 antialiased font-sans min-h-screen selection:bg-emerald-500 selection:text-white">
+    <!-- 頂部導覽列 -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <!-- Logo 與標題 -->
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 flex items-center justify-center shadow-lg shadow-emerald-950/50 ring-1 ring-emerald-400/30 shrink-0">
+              <svg class="w-5 h-5 text-emerald-100" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 20h18L12 4 3 20zm5-4l4-7 4 7H8z" />
+              </svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-semibold tracking-wider text-emerald-400 uppercase">
+                  林保署即時路況
+                </span>
+                <span id="apiStatusBadge" class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-800/80 text-emerald-300 font-mono">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  即時連線
+                </span>
+              </div>
+              <h1 class="text-lg sm:text-xl font-bold tracking-tight text-slate-100">
+                台灣林道通行狀態儀表板
+              </h1>
+            </div>
+          </div>
+
+          <!-- 功能操作與更新時間 -->
+          <div class="flex items-center gap-3 justify-between sm:justify-end">
+            <div class="text-right">
+              <span class="text-[11px] text-slate-400 block">最後擷取時間</span>
+              <span id="lastUpdatedText" class="text-xs font-mono font-medium text-slate-200">
+                連線中...
+              </span>
+            </div>
+            <button
+              id="refreshBtn"
+              type="button"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-emerald-300 border border-slate-700 text-xs sm:text-sm font-medium transition-colors shadow-sm cursor-pointer"
+              title="重新向 API 擷取最新狀態"
+            >
+              <svg id="refreshIcon" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>重新整理</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- 主要內容區 -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
+      <!-- 頂部統計卡片 -->
+      <section>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <span>通行狀態概覽</span>
+            <span class="text-xs text-slate-500 font-normal">（點擊卡片可快速篩選狀態）</span>
+          </h2>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" id="statsGrid">
+          <!-- 總計卡片 -->
+          <button
+            type="button"
+            data-filter-status="全部"
+            class="stat-card p-4 rounded-2xl border border-slate-800 bg-slate-900/80 hover:bg-slate-850 hover:border-slate-700 text-left transition-all cursor-pointer ring-2 ring-emerald-500/0"
+          >
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs font-medium text-slate-400">總計林道</span>
+              <span class="text-[10px] text-slate-500 font-mono">全部</span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span id="statTotal" class="text-2xl sm:text-3xl font-bold font-mono text-slate-100">--</span>
+              <span class="text-xs text-slate-500">條</span>
+            </div>
+          </button>
+
+          <!-- 全線暢通卡片 -->
+          <button
+            type="button"
+            data-filter-status="全線暢通"
+            class="stat-card p-4 rounded-2xl border border-emerald-900/50 bg-emerald-950/20 hover:bg-emerald-950/40 hover:border-emerald-700/60 text-left transition-all cursor-pointer ring-2 ring-emerald-500/0"
+          >
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs font-medium text-emerald-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                </svg>
+                全線暢通
+              </span>
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span id="statOpen" class="text-2xl sm:text-3xl font-bold font-mono text-emerald-400">--</span>
+              <span class="text-xs text-slate-500">條</span>
+            </div>
+          </button>
+
+          <!-- 部分封閉卡片 -->
+          <button
+            type="button"
+            data-filter-status="部分封閉"
+            class="stat-card p-4 rounded-2xl border border-amber-900/50 bg-amber-950/20 hover:bg-amber-950/40 hover:border-amber-700/60 text-left transition-all cursor-pointer ring-2 ring-emerald-500/0"
+          >
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs font-medium text-amber-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                部分封閉
+              </span>
+              <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span id="statPartial" class="text-2xl sm:text-3xl font-bold font-mono text-amber-400">--</span>
+              <span class="text-xs text-slate-500">條</span>
+            </div>
+          </button>
+
+          <!-- 交通管制卡片 -->
+          <button
+            type="button"
+            data-filter-status="交通管制"
+            class="stat-card p-4 rounded-2xl border border-blue-900/50 bg-blue-950/20 hover:bg-blue-950/40 hover:border-blue-700/60 text-left transition-all cursor-pointer ring-2 ring-emerald-500/0"
+          >
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs font-medium text-blue-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                交通管制
+              </span>
+              <span class="w-2 h-2 rounded-full bg-blue-400"></span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span id="statControlled" class="text-2xl sm:text-3xl font-bold font-mono text-blue-400">--</span>
+              <span class="text-xs text-slate-500">條</span>
+            </div>
+          </button>
+
+          <!-- 全線封閉卡片 -->
+          <button
+            type="button"
+            data-filter-status="全線封閉"
+            class="stat-card p-4 rounded-2xl border border-rose-900/50 bg-rose-950/20 hover:bg-rose-950/40 hover:border-rose-700/60 text-left transition-all cursor-pointer ring-2 ring-emerald-500/0"
+          >
+            <div class="flex items-center justify-between gap-1 mb-2">
+              <span class="text-xs font-medium text-rose-400 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+                全線封閉
+              </span>
+              <span class="w-2 h-2 rounded-full bg-rose-400"></span>
+            </div>
+            <div class="flex items-baseline justify-between">
+              <span id="statClosed" class="text-2xl sm:text-3xl font-bold font-mono text-rose-400">--</span>
+              <span class="text-xs text-slate-500">條</span>
+            </div>
+          </button>
+        </div>
+      </section>
+
+      <!-- 搜尋與篩選列 -->
+      <section class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+        <div class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          <!-- 搜尋框 -->
+          <div class="relative flex-1">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              id="searchInput"
+              type="text"
+              placeholder="搜尋林道名稱或起點位置（例如：觀霧、桶后、大鹿、竹東...）"
+              class="w-full pl-10 pr-9 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-colors"
+            />
+            <button
+              id="clearSearchBtn"
+              type="button"
+              class="hidden absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
+              title="清除搜尋"
+            >
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <!-- 狀態下拉選單與檢視切換 -->
+          <div class="flex items-center gap-2.5 flex-wrap sm:flex-nowrap">
+            <!-- 開放狀態下拉篩選 -->
+            <div class="relative flex-1 sm:flex-initial min-w-[150px]">
+              <label for="statusFilter" class="sr-only">篩選開放狀態</label>
+              <select
+                id="statusFilter"
+                class="w-full pl-3 pr-8 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-xs sm:text-sm text-slate-200 appearance-none focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer font-medium"
+              >
+                <option value="全部">全部狀態 (全部)</option>
+                <option value="全線暢通">全線暢通</option>
+                <option value="部分封閉">部分封閉</option>
+                <option value="交通管制">交通管制</option>
+                <option value="全線封閉">全線封閉</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2.5 text-slate-400">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- 檢視模式切換 (卡片 / 表格) -->
+            <div class="flex items-center p-1 bg-slate-950 border border-slate-800 rounded-xl shrink-0">
+              <button
+                id="cardViewBtn"
+                type="button"
+                class="p-1.5 rounded-lg text-xs font-medium transition-colors bg-emerald-600 text-white cursor-pointer"
+                title="切換為卡片檢視"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                id="tableViewBtn"
+                type="button"
+                class="p-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+                title="切換為表格檢視"
+              >
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分署篩選晶片標籤 -->
+        <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap pt-2 border-t border-slate-800/80 text-xs">
+          <span class="text-slate-400 font-medium mr-1 text-[11px] sm:text-xs">所屬分署：</span>
+          <div id="branchChips" class="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              data-branch="全部"
+              class="branch-pill px-2.5 py-1 rounded-lg text-xs font-medium transition-all bg-emerald-600 text-white cursor-pointer"
+            >
+              全部
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- 筆數指示 -->
+      <div class="flex items-center justify-between text-xs text-slate-400 px-1">
+        <div>
+          顯示 <span id="filteredCountText" class="font-bold text-emerald-400">0</span> 條林道
+          <span id="filterLabel" class="text-slate-500 ml-1"></span>
+        </div>
+        <div class="text-[11px] text-slate-500">
+          提示：點擊林道名稱或「詳情」標籤可預覽或開啟官方詳細說明
+        </div>
+      </div>
+
+      <!-- 列表呈現區 -->
+      <div id="contentArea">
+        <!-- 骨架屏載入中 -->
+        <div id="loadingState" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div class="h-36 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-5 space-y-3">
+            <div class="h-4 bg-slate-800 rounded w-1/3"></div>
+            <div class="h-6 bg-slate-800 rounded w-2/3"></div>
+            <div class="h-4 bg-slate-800 rounded w-1/2"></div>
+          </div>
+          <div class="h-36 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-5 space-y-3">
+            <div class="h-4 bg-slate-800 rounded w-1/3"></div>
+            <div class="h-6 bg-slate-800 rounded w-2/3"></div>
+            <div class="h-4 bg-slate-800 rounded w-1/2"></div>
+          </div>
+          <div class="h-36 rounded-2xl bg-slate-900/60 border border-slate-800 animate-pulse p-5 space-y-3">
+            <div class="h-4 bg-slate-800 rounded w-1/3"></div>
+            <div class="h-6 bg-slate-800 rounded w-2/3"></div>
+            <div class="h-4 bg-slate-800 rounded w-1/2"></div>
+          </div>
+        </div>
+
+        <!-- 卡片檢視容器 -->
+        <div id="cardsGrid" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+
+        <!-- 表格檢視容器 -->
+        <div id="tableView" class="hidden overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/70 shadow-sm">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm">
+              <thead class="bg-slate-950/80 text-slate-400 text-xs uppercase tracking-wider border-b border-slate-800">
+                <tr>
+                  <th scope="col" class="py-3.5 px-4 font-semibold">林道名稱與詳細資訊</th>
+                  <th scope="col" class="py-3.5 px-4 font-semibold">所屬分署</th>
+                  <th scope="col" class="py-3.5 px-4 font-semibold">起點位置</th>
+                  <th scope="col" class="py-3.5 px-4 font-semibold text-right">開放狀態</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody" class="divide-y divide-slate-800/60 text-slate-200"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- 無符合條件空狀態 -->
+        <div id="emptyState" class="hidden rounded-2xl border border-dashed border-slate-800 p-12 text-center bg-slate-900/40">
+          <svg class="w-10 h-10 text-slate-500 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <h3 class="text-base font-semibold text-slate-300">查無符合條件的林道</h3>
+          <p class="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+            在目前的搜尋與篩選條件下找不到相符的紀錄，請嘗試清除關鍵字或更換狀態選單。
+          </p>
+          <button
+            id="resetFilterBtn"
+            type="button"
+            class="mt-4 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+          >
+            重設篩選條件
+          </button>
+        </div>
+
+        <!-- 錯誤狀態 -->
+        <div id="errorState" class="hidden rounded-2xl border border-rose-900/60 bg-rose-950/20 p-8 text-center">
+          <svg class="w-10 h-10 text-rose-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 class="text-base font-semibold text-rose-300">連線取得林道資料失敗</h3>
+          <p id="errorMessage" class="text-xs text-slate-400 mt-1 max-w-md mx-auto">
+            無法與 Cloudflare Worker API 取得連線，請檢查網路連線後重試。
+          </p>
+          <button
+            id="retryBtn"
+            type="button"
+            class="mt-4 px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-medium transition-colors cursor-pointer"
+          >
+            重新嘗試
+          </button>
+        </div>
+      </div>
+    </main>
+
+    <!-- 彈跳視窗 Modal (方式 A: 彈跳視窗預覽 + 方式 B: 新分頁開啟) -->
+    <div
+      id="detailModal"
+      class="hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6"
+    >
+      <div
+        id="modalCard"
+        class="animate-modal relative w-full max-w-4xl max-h-[92vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+      >
+        <!-- Modal 頂部標題與快速操作列 -->
+        <div class="p-4 sm:p-5 border-b border-slate-800 flex items-center justify-between gap-3 bg-slate-950/70">
+          <div class="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-wrap">
+            <h3 id="modalRoadName" class="text-base sm:text-lg font-bold text-slate-100 tracking-tight">
+              林道名稱
+            </h3>
+            <span id="modalBranchBadge" class="text-xs px-2.5 py-0.5 rounded-full border">
+              分署
+            </span>
+            <span id="modalStatusBadge" class="text-xs font-semibold px-2 py-0.5 rounded-lg">
+              開放狀態
+            </span>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <!-- 方式 B: 在新分頁直接開啟 detailUrl -->
+            <a
+              id="modalExternalLink"
+              href="#"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-all shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+              title="在新分頁開啟官方詳細說明頁面"
+            >
+              <span>在新分頁開啟</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
+            </a>
+
+            <!-- 關閉 Modal 按鈕 -->
+            <button
+              id="closeModalBtn"
+              type="button"
+              class="p-1.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800 transition-colors cursor-pointer"
+              title="關閉視窗 (Esc)"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 起點位置與安全防護提示 -->
+        <div class="px-4 py-2.5 bg-slate-950/50 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs text-slate-400">
+          <div class="flex items-center gap-1.5 truncate">
+            <span class="text-slate-500">起點位置：</span>
+            <span id="modalStartLocation" class="text-slate-200 truncate font-medium">—</span>
+          </div>
+          <div class="text-[11px] text-amber-300/90 flex items-center gap-1">
+            <svg class="w-3.5 h-3.5 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>若官方網站限制 iframe 嵌入預覽，請直接點擊上方「在新分頁開啟」。</span>
+          </div>
+        </div>
+
+        <!-- 方式 A: 彈跳視窗內部載入 iframe -->
+        <div class="relative flex-1 min-h-[380px] sm:min-h-[500px] bg-slate-950 overflow-hidden">
+          <iframe
+            id="modalIframe"
+            src=""
+            class="w-full h-full border-0"
+            sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            loading="lazy"
+          ></iframe>
+
+          <!-- 載入中動畫層 -->
+          <div
+            id="modalLoading"
+            class="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center gap-3 text-slate-400 text-xs pointer-events-none"
+          >
+            <svg class="w-7 h-7 animate-spin text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span class="font-medium text-slate-300">正在為您載入詳細網頁...</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 頁腳 -->
+    <footer class="mt-12 border-t border-slate-800/80 bg-slate-900/60 text-slate-400 py-6 text-xs">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
+        <div>
+          <span class="font-semibold text-slate-300">台灣林道通行狀態即時儀表板</span>
+          <span class="text-slate-600 mx-2">|</span>
+          <span class="text-slate-500">API 託管於 Cloudflare Workers</span>
+        </div>
+        <div class="text-[11px] text-slate-500">
+          本平台即時同步農業部林業及自然保育署公告資訊，行前請注意山區天候變化。
+        </div>
+      </div>
+    </footer>
+
+    <!-- JavaScript 核心邏輯 -->
+    <script>
+      (function () {
+        // Cloudflare Worker API 網址
+        const API_URL = 'https://forest-road-status.transfera920.workers.dev/';
+
+        // 全域狀態
+        let allRoads = [];
+        let statusCounts = {};
+        let activeBranch = '全部';
+        let activeStatus = '全部';
+        let searchQuery = '';
+        let viewMode = 'cards'; // 'cards' | 'table'
+
+        // 取得 DOM 元件
+        const refreshBtn = document.getElementById('refreshBtn');
+        const refreshIcon = document.getElementById('refreshIcon');
+        const apiStatusBadge = document.getElementById('apiStatusBadge');
+        const lastUpdatedText = document.getElementById('lastUpdatedText');
+        const searchInput = document.getElementById('searchInput');
+        const clearSearchBtn = document.getElementById('clearSearchBtn');
+        const statusFilter = document.getElementById('statusFilter');
+        const branchChips = document.getElementById('branchChips');
+        const cardViewBtn = document.getElementById('cardViewBtn');
+        const tableViewBtn = document.getElementById('tableViewBtn');
+        const loadingState = document.getElementById('loadingState');
+        const cardsGrid = document.getElementById('cardsGrid');
+        const tableView = document.getElementById('tableView');
+        const tableBody = document.getElementById('tableBody');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+        const errorMessage = document.getElementById('errorMessage');
+        const retryBtn = document.getElementById('retryBtn');
+        const resetFilterBtn = document.getElementById('resetFilterBtn');
+        const filteredCountText = document.getElementById('filteredCountText');
+        const filterLabel = document.getElementById('filterLabel');
+
+        // Modal DOM 元件
+        const detailModal = document.getElementById('detailModal');
+        const modalCard = document.getElementById('modalCard');
+        const modalRoadName = document.getElementById('modalRoadName');
+        const modalBranchBadge = document.getElementById('modalBranchBadge');
+        const modalStatusBadge = document.getElementById('modalStatusBadge');
+        const modalStartLocation = document.getElementById('modalStartLocation');
+        const modalExternalLink = document.getElementById('modalExternalLink');
+        const modalIframe = document.getElementById('modalIframe');
+        const modalLoading = document.getElementById('modalLoading');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+
+        // 統計計數 DOM
+        const statTotal = document.getElementById('statTotal');
+        const statOpen = document.getElementById('statOpen');
+        const statPartial = document.getElementById('statPartial');
+        const statControlled = document.getElementById('statControlled');
+        const statClosed = document.getElementById('statClosed');
+
+        // 解碼 HTML Entities（例如 API 回傳之 東&#30524;山林道 -> 東眼山林道）
+        function decodeHtmlEntities(str) {
+          if (!str) return '—';
+          const txt = document.createElement('textarea');
+          txt.innerHTML = str;
+          return txt.value;
+        }
+
+        // 格式化時間
+        function formatDateTime(isoString) {
+          if (!isoString) return '剛剛';
+          try {
+            const date = new Date(isoString);
+            return date.toLocaleString('zh-TW', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+              second: '2-digit',
+              hour12: false,
+            });
+          } catch (e) {
+            return isoString;
+          }
+        }
+
+        // 產生不同狀態之色彩標籤與圖示
+        function getStatusBadge(status) {
+          switch (status) {
+            case '全線暢通':
+              return {
+                label: '全線暢通',
+                classes: 'bg-emerald-950/80 text-emerald-300 border border-emerald-700/60',
+                icon: `<svg class="w-3 h-3 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>`,
+              };
+            case '部分封閉':
+              return {
+                label: '部分封閉',
+                classes: 'bg-amber-950/80 text-amber-300 border border-amber-700/60',
+                icon: `<svg class="w-3 h-3 text-amber-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`,
+              };
+            case '交通管制':
+              return {
+                label: '交通管制',
+                classes: 'bg-blue-950/80 text-blue-300 border border-blue-700/60',
+                icon: `<svg class="w-3 h-3 text-blue-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>`,
+              };
+            case '全線封閉':
+              return {
+                label: '全線封閉',
+                classes: 'bg-rose-950/80 text-rose-300 border border-rose-700/60',
+                icon: `<svg class="w-3 h-3 text-rose-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"/></svg>`,
+              };
+            default:
+              return {
+                label: status || '未確認',
+                classes: 'bg-slate-800 text-slate-300 border border-slate-700',
+                icon: `<svg class="w-3 h-3 text-slate-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke-width="2"/></svg>`,
+              };
+          }
+        }
+
+        // 分署徽章樣式
+        function getBranchBadgeClass(branch) {
+          if (!branch) return 'bg-slate-800 text-slate-300 border-slate-700';
+          if (branch.includes('新竹')) return 'bg-teal-950/80 text-teal-300 border border-teal-800/60';
+          if (branch.includes('臺中') || branch.includes('台中')) return 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/60';
+          if (branch.includes('南投')) return 'bg-lime-950/80 text-lime-300 border border-lime-800/60';
+          if (branch.includes('嘉義')) return 'bg-sky-950/80 text-sky-300 border border-sky-800/60';
+          if (branch.includes('屏東')) return 'bg-amber-950/80 text-amber-300 border border-amber-800/60';
+          if (branch.includes('臺東') || branch.includes('台東')) return 'bg-indigo-950/80 text-indigo-300 border border-indigo-800/60';
+          if (branch.includes('花蓮')) return 'bg-violet-950/80 text-violet-300 border border-violet-800/60';
+          if (branch.includes('宜蘭') || branch.includes('羅東')) return 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60';
+          return 'bg-slate-800 text-slate-300 border border-slate-700';
+        }
+
+        // 開啟詳細資料 Modal（支援 iframe 預覽與新分頁開啟）
+        window.openRoadDetail = function (id) {
+          const road = allRoads.find((r) => r.id === Number(id));
+          if (!road) return;
+
+          modalRoadName.textContent = road.name;
+          modalStartLocation.textContent = road.startLocation || '—';
+
+          // 分署徽章
+          modalBranchBadge.className = `text-xs px-2.5 py-0.5 rounded-full border ${getBranchBadgeClass(road.branch)}`;
+          modalBranchBadge.textContent = road.branch;
+
+          // 狀態徽章
+          const badge = getStatusBadge(road.status);
+          modalStatusBadge.className = `text-xs font-semibold px-2.5 py-0.5 rounded-lg ${badge.classes}`;
+          modalStatusBadge.innerHTML = `${badge.icon} ${badge.label}`;
+
+          // 設定外部連結網址
+          const targetUrl = road.detailUrl || `https://www.forest.gov.tw/0003286`;
+          modalExternalLink.href = targetUrl;
+
+          // 載入 iframe
+          modalLoading.classList.remove('hidden');
+          modalIframe.src = targetUrl;
+          modalIframe.onload = function () {
+            modalLoading.classList.add('hidden');
+          };
+
+          // 顯示 Modal
+          detailModal.classList.remove('hidden');
+          document.body.style.overflow = 'hidden';
+        };
+
+        // 關閉 Modal
+        function closeDetailModal() {
+          detailModal.classList.add('hidden');
+          modalIframe.src = '';
+          document.body.style.overflow = '';
+        }
+
+        closeModalBtn.addEventListener('click', closeDetailModal);
+        detailModal.addEventListener('click', (e) => {
+          if (e.target === detailModal) {
+            closeDetailModal();
+          }
+        });
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape' && !detailModal.classList.contains('hidden')) {
+            closeDetailModal();
+          }
+        });
+
+        // 向 API 請求資料
+        async function fetchForestRoads() {
+          refreshIcon.classList.add('animate-spin');
+          apiStatusBadge.className = 'inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-amber-950/90 border border-amber-800/80 text-amber-300 font-mono';
+          apiStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>更新中...`;
+
+          loadingState.classList.remove('hidden');
+          cardsGrid.classList.add('hidden');
+          tableView.classList.add('hidden');
+          emptyState.classList.add('hidden');
+          errorState.classList.add('hidden');
+
+          try {
+            const response = await fetch(API_URL);
+            if (!response.ok) {
+              throw new Error(`HTTP 錯誤：${response.status}`);
+            }
+
+            const data = await response.json();
+            if (!data.success && !data.roads) {
+              throw new Error(data.message || 'API 回傳格式不符合預期');
+            }
+
+            // 清理並解析道路清單，保留 detailUrl
+            allRoads = (data.roads || []).map((r, idx) => ({
+              id: idx + 1,
+              name: decodeHtmlEntities(r.name),
+              branch: decodeHtmlEntities(r.branch),
+              startLocation: decodeHtmlEntities(r.startLocation) || '—',
+              status: decodeHtmlEntities(r.status) || '未確認',
+              detailUrl: r.detailUrl ? r.detailUrl.trim() : null,
+            }));
+
+            // 更新頂部統計數據
+            statusCounts = data.statusCount || {};
+            const totalCount = data.total || allRoads.length;
+            statTotal.textContent = totalCount;
+            statOpen.textContent = statusCounts['全線暢通'] ?? allRoads.filter(r => r.status === '全線暢通').length;
+            statPartial.textContent = statusCounts['部分封閉'] ?? allRoads.filter(r => r.status === '部分封閉').length;
+            statControlled.textContent = statusCounts['交通管制'] ?? allRoads.filter(r => r.status === '交通管制').length;
+            statClosed.textContent = statusCounts['全線封閉'] ?? allRoads.filter(r => r.status === '全線封閉').length;
+
+            lastUpdatedText.textContent = formatDateTime(data.fetchedAt);
+
+            apiStatusBadge.className = 'inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-950/90 border border-emerald-800/80 text-emerald-300 font-mono';
+            apiStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>連線正常`;
+
+            // 動態產生分署標籤
+            populateBranchChips();
+
+            // 繪製列表
+            renderRoads();
+          } catch (err) {
+            console.error('Fetch error:', err);
+            apiStatusBadge.className = 'inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-rose-950/90 border border-rose-800/80 text-rose-300 font-mono';
+            apiStatusBadge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span>連線失敗`;
+            errorMessage.textContent = `無法載入林道狀態：${err.message || '網路異常'}`;
+            loadingState.classList.add('hidden');
+            errorState.classList.remove('hidden');
+          } finally {
+            refreshIcon.classList.remove('animate-spin');
+          }
+        }
+
+        // 動態產生分署標籤
+        function populateBranchChips() {
+          const branches = [...new Set(allRoads.map((r) => r.branch).filter(Boolean))].sort();
+          
+          let html = `
+            <button
+              type="button"
+              data-branch="全部"
+              class="branch-pill px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                activeBranch === '全部'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
+              } cursor-pointer"
+            >
+              全部 (${allRoads.length})
+            </button>
+          `;
+
+          branches.forEach((b) => {
+            const count = allRoads.filter((r) => r.branch === b).length;
+            const isSelected = activeBranch === b;
+            html += `
+              <button
+                type="button"
+                data-branch="${b}"
+                class="branch-pill px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+                  isSelected
+                    ? 'bg-emerald-600 text-white shadow-sm'
+                    : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
+                } cursor-pointer"
+              >
+                ${b} (${count})
+              </button>
+            `;
+          });
+
+          branchChips.innerHTML = html;
+
+          branchChips.querySelectorAll('.branch-pill').forEach((btn) => {
+            btn.addEventListener('click', () => {
+              activeBranch = btn.getAttribute('data-branch');
+              populateBranchChips();
+              renderRoads();
+            });
+          });
+        }
+
+        // 篩選與渲染林道列表
+        function renderRoads() {
+          loadingState.classList.add('hidden');
+          errorState.classList.add('hidden');
+
+          const filtered = allRoads.filter((road) => {
+            if (activeStatus !== '全部' && road.status !== activeStatus) {
+              return false;
+            }
+            if (activeBranch !== '全部' && road.branch !== activeBranch) {
+              return false;
+            }
+            if (searchQuery.trim()) {
+              const q = searchQuery.trim().toLowerCase();
+              const nameMatch = road.name.toLowerCase().includes(q);
+              const locMatch = road.startLocation.toLowerCase().includes(q);
+              if (!nameMatch && !locMatch) {
+                return false;
+              }
+            }
+            return true;
+          });
+
+          filteredCountText.textContent = filtered.length;
+          let labelText = '';
+          if (activeStatus !== '全部') labelText += `[${activeStatus}] `;
+          if (activeBranch !== '全部') labelText += `[${activeBranch}] `;
+          if (searchQuery) labelText += `關鍵字: "${searchQuery}"`;
+          filterLabel.textContent = labelText ? `(${labelText.trim()})` : '';
+
+          // 標記目前啟用的統計卡片高亮
+          document.querySelectorAll('.stat-card').forEach((card) => {
+            const cardStatus = card.getAttribute('data-filter-status');
+            if (cardStatus === activeStatus) {
+              card.classList.add('ring-2', 'ring-emerald-400', 'bg-slate-800');
+            } else {
+              card.classList.remove('ring-2', 'ring-emerald-400', 'bg-slate-800');
+            }
+          });
+
+          if (filtered.length === 0) {
+            cardsGrid.classList.add('hidden');
+            tableView.classList.add('hidden');
+            emptyState.classList.remove('hidden');
+            return;
+          }
+
+          emptyState.classList.add('hidden');
+
+          if (viewMode === 'cards') {
+            renderCardsView(filtered);
+            cardsGrid.classList.remove('hidden');
+            tableView.classList.add('hidden');
+          } else {
+            renderTableView(filtered);
+            tableView.classList.remove('hidden');
+            cardsGrid.classList.add('hidden');
+          }
+        }
+
+        // 卡片檢視
+        function renderCardsView(roads) {
+          cardsGrid.innerHTML = roads
+            .map((road) => {
+              const statusBadge = getStatusBadge(road.status);
+              const branchBadgeClass = getBranchBadgeClass(road.branch);
+              const hasDetail = Boolean(road.detailUrl);
+
+              return `
+                <div class="card-transition rounded-2xl border border-slate-800 bg-slate-900/90 hover:bg-slate-850 hover:border-slate-700 p-5 flex flex-col justify-between shadow-sm hover:shadow-md">
+                  <div>
+                    <div class="flex items-start justify-between gap-3 mb-2.5">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span class="font-mono text-[11px] font-semibold text-slate-500 bg-slate-950 px-2 py-0.5 rounded border border-slate-800">
+                          #${String(road.id).padStart(2, '0')}
+                        </span>
+                        <span class="text-xs font-medium px-2.5 py-0.5 rounded-full border ${branchBadgeClass}">
+                          ${road.branch}
+                        </span>
+                      </div>
+
+                      <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg ${statusBadge.classes}">
+                        ${statusBadge.icon}
+                        ${statusBadge.label}
+                      </span>
+                    </div>
+
+                    <!-- 林道名稱與詳情提示按鈕 -->
+                    <div class="flex items-center gap-2 flex-wrap mb-3">
+                      <button
+                        type="button"
+                        onclick="openRoadDetail('${road.id}')"
+                        class="text-lg font-bold text-slate-100 hover:text-emerald-300 transition-colors tracking-tight text-left flex items-center gap-1.5 group/title cursor-pointer"
+                        title="點擊查看詳細資訊"
+                      >
+                        <span class="group-hover/title:underline underline-offset-4 decoration-emerald-500/60">${road.name}</span>
+                      </button>
+
+                      ${
+                        hasDetail
+                          ? `
+                        <div class="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onclick="openRoadDetail('${road.id}')"
+                            class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 hover:bg-emerald-900 transition-all shadow-sm cursor-pointer hover:scale-105 active:scale-95"
+                            title="開啟詳細說明視窗"
+                          >
+                            <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                            </svg>
+                            <span>詳情</span>
+                          </button>
+
+                          <a
+                            href="${road.detailUrl}"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="p-1 text-slate-400 hover:text-emerald-300 transition-colors rounded hover:bg-slate-800"
+                            title="在新分頁直接開啟官方頁面"
+                            onclick="event.stopPropagation();"
+                          >
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                          </a>
+                        </div>
+                      `
+                          : `
+                        <button
+                          type="button"
+                          onclick="openRoadDetail('${road.id}')"
+                          class="inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700/80 hover:text-slate-200 transition-colors cursor-pointer"
+                          title="點擊預覽林道資訊"
+                        >
+                          <svg class="w-3 h-3 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>資訊</span>
+                        </button>
+                      `
+                      }
+                    </div>
+                  </div>
+
+                  <!-- 起點位置 -->
+                  <div class="pt-3 border-t border-slate-800/80 text-xs text-slate-400 flex items-start gap-2">
+                    <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <div class="min-w-0">
+                      <span class="text-slate-500 block text-[11px]">起點位置</span>
+                      <span class="font-medium text-slate-200 truncate block">${road.startLocation}</span>
+                    </div>
+                  </div>
+                </div>
+              `;
+            })
+            .join('');
+        }
+
+        // 表格檢視
+        function renderTableView(roads) {
+          tableBody.innerHTML = roads
+            .map((road) => {
+              const statusBadge = getStatusBadge(road.status);
+              const branchBadgeClass = getBranchBadgeClass(road.branch);
+              const hasDetail = Boolean(road.detailUrl);
+
+              return `
+                <tr class="hover:bg-slate-800/40 transition-colors">
+                  <td class="py-3.5 px-4 font-semibold text-slate-100">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <span class="font-mono text-[11px] text-slate-500">#${String(road.id).padStart(2, '0')}</span>
+                      <button
+                        type="button"
+                        onclick="openRoadDetail('${road.id}')"
+                        class="hover:text-emerald-300 transition-colors text-left font-bold cursor-pointer hover:underline underline-offset-4 decoration-emerald-500/60"
+                        title="點擊查看詳細資訊"
+                      >
+                        ${road.name}
+                      </button>
+
+                      ${
+                        hasDetail
+                          ? `
+                        <button
+                          type="button"
+                          onclick="openRoadDetail('${road.id}')"
+                          class="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-950/90 text-emerald-300 border border-emerald-700/80 hover:bg-emerald-900 transition-all cursor-pointer"
+                          title="開啟詳細說明視窗"
+                        >
+                          <svg class="w-2.5 h-2.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/>
+                          </svg>
+                          <span>詳情</span>
+                        </button>
+                      `
+                          : ''
+                      }
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-4">
+                    <span class="text-xs font-medium px-2 py-0.5 rounded-full border ${branchBadgeClass}">
+                      ${road.branch}
+                    </span>
+                  </td>
+                  <td class="py-3.5 px-4 text-slate-300">
+                    <div class="flex items-center gap-1.5">
+                      <svg class="w-3.5 h-3.5 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      </svg>
+                      <span class="truncate max-w-xs">${road.startLocation}</span>
+                    </div>
+                  </td>
+                  <td class="py-3.5 px-4 text-right">
+                    <span class="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg ${statusBadge.classes}">
+                      ${statusBadge.icon}
+                      ${statusBadge.label}
+                    </span>
+                  </td>
+                </tr>
+              `;
+            })
+            .join('');
+        }
+
+        // 事件綁定
+        refreshBtn.addEventListener('click', fetchForestRoads);
+        retryBtn.addEventListener('click', fetchForestRoads);
+
+        searchInput.addEventListener('input', (e) => {
+          searchQuery = e.target.value;
+          if (searchQuery) {
+            clearSearchBtn.classList.remove('hidden');
+          } else {
+            clearSearchBtn.classList.add('hidden');
+          }
+          renderRoads();
+        });
+
+        clearSearchBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          searchQuery = '';
+          clearSearchBtn.classList.add('hidden');
+          renderRoads();
+        });
+
+        statusFilter.addEventListener('change', (e) => {
+          activeStatus = e.target.value;
+          renderRoads();
+        });
+
+        document.querySelectorAll('.stat-card').forEach((card) => {
+          card.addEventListener('click', () => {
+            const status = card.getAttribute('data-filter-status');
+            activeStatus = status;
+            statusFilter.value = status;
+            renderRoads();
+          });
+        });
+
+        resetFilterBtn.addEventListener('click', () => {
+          searchInput.value = '';
+          searchQuery = '';
+          clearSearchBtn.classList.add('hidden');
+          activeStatus = '全部';
+          statusFilter.value = '全部';
+          activeBranch = '全部';
+          populateBranchChips();
+          renderRoads();
+        });
+
+        cardViewBtn.addEventListener('click', () => {
+          viewMode = 'cards';
+          cardViewBtn.className = 'p-1.5 rounded-lg text-xs font-medium transition-colors bg-emerald-600 text-white cursor-pointer';
+          tableViewBtn.className = 'p-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer';
+          renderRoads();
+        });
+
+        tableViewBtn.addEventListener('click', () => {
+          viewMode = 'table';
+          tableViewBtn.className = 'p-1.5 rounded-lg text-xs font-medium transition-colors bg-emerald-600 text-white cursor-pointer';
+          cardViewBtn.className = 'p-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-colors cursor-pointer';
+          renderRoads();
+        });
+
+        // 初始載入
+        fetchForestRoads();
+      })();
+    </script>
   </body>
 </html>
-
