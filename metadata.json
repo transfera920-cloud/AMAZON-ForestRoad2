@@ -1,0 +1,6 @@
+{
+  "name": "台灣林道通行狀況 - 亞馬遜國家山岳協會",
+  "description": "亞馬遜國家山岳協會林道通行狀況查詢工具，收錄林業及自然保育署官方列管 83 條林道最新通報資訊。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
