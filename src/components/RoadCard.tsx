@@ -72,7 +72,7 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
   const isCustomUpdated = road.lastUpdated !== '未確認';
 
   return (
-    <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 hover:border-slate-700 transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden">
+    <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 hover:border-slate-700 transition-all duration-200 shadow-sm hover:shadow-md flex flex-col overflow-hidden">
       {/* Top Header Section */}
       <div className="p-4 sm:p-5 pb-3">
         <div className="flex items-start justify-between gap-3 mb-2.5">

@@ -283,7 +283,7 @@ export default function App() {
 
         {/* Road Cards Grid */}
         {filteredRoads.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 items-start">
             {filteredRoads.map((road) => (
               <RoadCard
                 key={road.id}
