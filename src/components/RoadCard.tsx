@@ -3,8 +3,6 @@ import { ForestRoad, RoadStatus } from '../types';
 import { STATUS_LIST } from '../data/forestRoads';
 import {
   MapPin,
-  Phone,
-  Gauge,
   Clock,
   ChevronDown,
   ChevronUp,
@@ -145,14 +143,10 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
             </span>
           </button>
 
-          <span className="text-xs text-slate-400 font-medium shrink-0 flex items-center gap-1">
-            <AlertCircle className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-            <span>{road.status}</span>
-          </span>
         </div>
       </div>
 
-      {/* Meta Information Grid (只顯示：起點、可通行里程、電話、最後更新時間) */}
+      {/* Meta Information Grid (只顯示：起點、最後更新時間) */}
       <div className="px-4 sm:px-5 py-3 border-t border-slate-800/70 bg-slate-950/40 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-300">
         {/* 起點位置 */}
         <div className="flex items-start gap-2">
@@ -162,24 +156,6 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
             <span className="font-medium text-slate-200 truncate block">
               {road.startLocation}
             </span>
-          </div>
-        </div>
-
-        {/* 可通行至幾公里 */}
-        <div className="flex items-start gap-2">
-          <Gauge className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="text-slate-500 block text-[11px]">可通行里程</span>
-            <span className="font-medium text-slate-200">{road.passableMileage}</span>
-          </div>
-        </div>
-
-        {/* 官方路況通報電話 */}
-        <div className="flex items-start gap-2">
-          <Phone className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="text-slate-500 block text-[11px]">官方通報電話</span>
-            <span className="font-medium text-slate-200">{road.officialPhone}</span>
           </div>
         </div>
 
@@ -215,7 +191,7 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
           <div className="pt-2 border-t border-slate-800/80 flex items-start gap-1.5 text-[11px] text-slate-400">
             <AlertCircle className="w-3.5 h-3.5 text-amber-400/80 shrink-0 mt-0.5" />
             <span>
-              亞馬遜國家山岳協會提醒：山區林道易因降雨崩塌，入山前請向{road.branch}核實當天路況。
+              山區林道易因降雨崩塌，入山前請向{road.branch}核實當天路況。
             </span>
           </div>
         </div>
