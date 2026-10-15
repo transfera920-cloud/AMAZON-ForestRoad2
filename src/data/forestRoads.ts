@@ -25,6 +25,7 @@ export interface ForestRoad {
   officialPhone: string;
   lastUpdated: string;
   description: string;
+  detailUrl?: string;
 }
 
 export const BRANCH_LIST: BranchName[] = [

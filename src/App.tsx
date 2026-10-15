@@ -1,13 +1,40 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { FOREST_ROADS_DATA, BranchName, RoadStatus } from './data/forestRoads';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { FOREST_ROADS_DATA, STATUS_LIST, BranchName, RoadStatus } from './data/forestRoads';
 import { Header } from './components/Header';
 import { StatusSummary } from './components/StatusSummary';
 import { FilterBar } from './components/FilterBar';
 import { RoadCard } from './components/RoadCard';
 import { Footer } from './components/Footer';
-import { SearchX, ArrowUp, CheckCircle } from 'lucide-react';
+import { SearchX, ArrowUp, CheckCircle, RefreshCw, WifiOff } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'amazon_mountain_forest_roads_status_v1';
+const API_URL = 'https://forest-road-status.transfera920.workers.dev/';
+
+interface LiveRoad {
+  status: RoadStatus;
+  detailUrl?: string;
+}
+
+// 解碼 API 回傳的 HTML Entities（例如 東&#30524;山林道 -> 東眼山林道）
+const decodeEntities = (str?: string): string => {
+  if (!str) return '';
+  const el = document.createElement('textarea');
+  el.innerHTML = str;
+  return el.value;
+};
+
+// 名稱比對用：去空白、統一「台/臺」
+const normName = (str?: string): string =>
+  decodeEntities(str).replace(/\s+/g, '').replace(/台/g, '臺');
+
+const formatTime = (iso?: string): string => {
+  const d = iso ? new Date(iso) : new Date();
+  const date = isNaN(d.getTime()) ? new Date() : d;
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}`;
+}
 
 export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(true);
@@ -31,6 +58,57 @@ export default function App() {
     }
     return {};
   });
+
+  // 即時資料：向 Cloudflare Worker 取得林保署最新狀態
+  const [liveMap, setLiveMap] = useState<Record<string, LiveRoad>>({});
+  const [liveState, setLiveState] = useState<'loading' | 'ok' | 'error'>('loading');
+  const [liveFetchedAt, setLiveFetchedAt] = useState<string>('');
+  const [liveError, setLiveError] = useState<string>('');
+  const [liveMatched, setLiveMatched] = useState<number>(0);
+
+  const fetchLive = useCallback(async () => {
+    setLiveState('loading');
+    try {
+      const res = await fetch(API_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!Array.isArray(data.roads)) throw new Error('API 回傳格式不符合預期');
+
+      const map: Record<string, LiveRoad> = {};
+      data.roads.forEach((r: any) => {
+        const decoded = decodeEntities(r.status).trim();
+        const status = (STATUS_LIST as string[]).includes(decoded)
+          ? (decoded as RoadStatus)
+          : '未確認';
+        map[normName(r.name)] = {
+          status,
+          detailUrl: r.detailUrl ? String(r.detailUrl).trim() : undefined,
+        };
+      });
+
+      const matched = FOREST_ROADS_DATA.filter((r) => map[normName(r.name)]).length;
+      if (matched < FOREST_ROADS_DATA.length) {
+        console.warn(
+          '以下林道在 API 中找不到對應名稱：',
+          FOREST_ROADS_DATA.filter((r) => !map[normName(r.name)]).map((r) => r.name)
+        );
+      }
+
+      setLiveMap(map);
+      setLiveMatched(matched);
+      setLiveFetchedAt(formatTime(data.fetchedAt));
+      setLiveState('ok');
+      setLiveError('');
+    } catch (e: any) {
+      console.error('Failed to fetch live road status', e);
+      setLiveState('error');
+      setLiveError(e?.message || '網路異常');
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchLive();
+  }, [fetchLive]);
 
   // Toggle dark mode class on html tag
   useEffect(() => {
@@ -74,7 +152,9 @@ export default function App() {
 
     setCustomStatusMap((prev) => {
       const next = { ...prev };
-      if (newStatus === '未確認') {
+      const baseStatus: RoadStatus =
+        (targetRoad && liveMap[normName(targetRoad.name)]?.status) || '未確認';
+      if (newStatus === baseStatus) {
         delete next[id];
       } else {
         next[id] = {
@@ -99,13 +179,13 @@ export default function App() {
   const handleResetAllToUnconfirmed = () => {
     const count = Object.keys(customStatusMap).length;
     if (count === 0) {
-      triggerToast('目前所有 83 條林道皆已為初始「未確認」狀態');
+      triggerToast('目前沒有任何手動標記');
       return;
     }
 
     if (
       window.confirm(
-        `確定要重設全部 83 條林道為「未確認」嗎？\n這將清除您在瀏覽器中儲存的 ${count} 筆自訂開放狀態。`
+        `確定要清除您在瀏覽器中儲存的 ${count} 筆手動標記嗎？\n清除後將恢復為林保署即時資料。`
       )
     ) {
       try {
@@ -114,24 +194,35 @@ export default function App() {
         console.error(e);
       }
       setCustomStatusMap({});
-      triggerToast('已清除全部自訂狀態，83 條林道皆恢復為「未確認」');
+      triggerToast('已清除全部手動標記，恢復為林保署即時資料');
     }
   };
 
   // Combine initial official dataset with custom status map from localStorage
   const roadsWithStatus = useMemo(() => {
     return FOREST_ROADS_DATA.map((road) => {
+      let merged = road;
+      const live = liveMap[normName(road.name)];
+      if (live) {
+        merged = {
+          ...road,
+          status: live.status,
+          detailUrl: live.detailUrl,
+          lastUpdated:
+            live.status === '未確認' ? '未確認' : `${liveFetchedAt} (林保署即時)`,
+        };
+      }
       const custom = customStatusMap[road.id];
       if (custom) {
         return {
-          ...road,
+          ...merged,
           status: custom.status,
           lastUpdated: custom.updatedAt,
         };
       }
-      return road;
+      return merged;
     });
-  }, [customStatusMap]);
+  }, [customStatusMap, liveMap, liveFetchedAt]);
 
   // Compute status counts for the top status cards based on current branch/search or all
   const statusCounts = useMemo(() => {
@@ -240,19 +331,39 @@ export default function App() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-              亞馬遜國家山岳協會維護。初始狀態均嚴格列為「未確認」以杜絕假資料；支援即時手動標記並自動記住於瀏覽器，或一鍵查閱林保署官方最新通報。
+              亞馬遜國家山岳協會維護。開放狀態即時取自林保署公告；查無資料者列為「未確認」，也可手動標記並記住於瀏覽器。
             </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {modifiedCount > 0 ? (
-              <div className="text-xs font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-800/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
-                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                <span>已記住 {modifiedCount} 條狀態</span>
+          <div className="flex items-center gap-2 shrink-0 flex-wrap">
+            {liveState === 'error' ? (
+              <div className="text-xs text-rose-300 bg-rose-950/70 border border-rose-800/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                <WifiOff className="w-3.5 h-3.5" />
+                <span>即時資料載入失敗（{liveError}）</span>
+              </div>
+            ) : liveState === 'loading' ? (
+              <div className="text-xs text-amber-300 bg-amber-950/70 border border-amber-800/80 px-3 py-1.5 rounded-xl">
+                即時資料載入中…
               </div>
             ) : (
-              <div className="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
-                初始未確認：<strong className="text-amber-400">83</strong> 條
+              <div className="text-xs font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-800/80 px-3 py-1.5 rounded-xl">
+                即時 {liveFetchedAt}・已對應 {liveMatched}/{FOREST_ROADS_DATA.length} 條
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={fetchLive}
+              disabled={liveState === 'loading'}
+              className="text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 px-3 py-1.5 rounded-xl flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+              title="重新向 Worker 取得最新狀態"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${liveState === 'loading' ? 'animate-spin' : ''}`} />
+              <span>重新整理</span>
+            </button>
+            {modifiedCount > 0 && (
+              <div className="text-xs font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-800/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>已手動標記 {modifiedCount} 條</span>
               </div>
             )}
           </div>

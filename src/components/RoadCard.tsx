@@ -201,6 +201,16 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
           <div className="space-y-1">
             <h4 className="font-semibold text-emerald-400">林道概況說明</h4>
             <p className="text-slate-300/90 leading-relaxed">{road.description}</p>
+            {road.detailUrl && (
+              <a
+                href={road.detailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block text-emerald-400 hover:text-emerald-300 underline underline-offset-2"
+              >
+                查看林保署官方詳細說明 ↗
+              </a>
+            )}
           </div>
           <div className="pt-2 border-t border-slate-800/80 flex items-start gap-1.5 text-[11px] text-slate-400">
             <AlertCircle className="w-3.5 h-3.5 text-amber-400/80 shrink-0 mt-0.5" />
