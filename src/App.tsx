@@ -333,6 +333,14 @@ export default function App() {
             <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
               亞馬遜國家山岳協會維護。開放狀態即時取自林保署公告；查無資料者列為「未確認」，也可手動標記並記住於瀏覽器。
             </p>
+            <a
+              href="https://transfer.amazon-hike.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 mt-2 text-xs sm:text-sm font-semibold text-emerald-400 hover:text-emerald-300 hover:underline underline-offset-4 transition-colors"
+            >
+              需要登山接駁？前往亞馬遜高山接駁 →
+            </a>
           </div>
 
           <div className="flex items-center gap-2 shrink-0 flex-wrap">

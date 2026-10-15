@@ -18,6 +18,18 @@ export const Footer: React.FC = () => {
           </div>
         </div>
 
+        <div className="text-center sm:text-left">
+          <a
+            href="https://transfer.amazon-hike.com/"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-semibold text-emerald-400 hover:text-emerald-300 hover:underline underline-offset-4 transition-colors"
+          >
+            <Mountain className="w-3.5 h-3.5" />
+            亞馬遜高山接駁：百岳、高山登山口包車接送 →
+          </a>
+        </div>
+
         <div className="border-t border-slate-800/60 pt-4 text-center sm:text-left text-slate-500 leading-relaxed text-[11px] space-y-1">
           <p>
             聲明：本工具純粹作為林道清冊與通報狀態檢視，嚴格遵循不臆測路況與不製造未證實資訊原則。目前所有林道路況通報指標均列為「未確認」或「—」，請登山夥伴出發前密切關注林業及自然保育署與各分署即時公告。
