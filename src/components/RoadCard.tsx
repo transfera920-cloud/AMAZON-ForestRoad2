@@ -1,12 +1,27 @@
 import React, { useState } from 'react';
-import { ForestRoad } from '../types';
-import { MapPin, Phone, Gauge, Clock, ChevronDown, ChevronUp, AlertCircle, FileText } from 'lucide-react';
+import { ForestRoad, RoadStatus } from '../types';
+import { STATUS_LIST } from '../data/forestRoads';
+import {
+  MapPin,
+  Phone,
+  Gauge,
+  Clock,
+  ChevronDown,
+  ChevronUp,
+  AlertCircle,
+  CheckCircle2,
+  AlertTriangle,
+  ShieldAlert,
+  XCircle,
+  Edit3,
+} from 'lucide-react';
 
 interface RoadCardProps {
   road: ForestRoad;
+  onStatusChange: (id: number, status: RoadStatus) => void;
 }
 
-export const RoadCard: React.FC<RoadCardProps> = ({ road }) => {
+export const RoadCard: React.FC<RoadCardProps> = ({ road, onStatusChange }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Subtle branch badge styling
@@ -24,11 +39,40 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road }) => {
   const branchBadgeClass =
     branchColorMap[road.branch] || 'bg-slate-800 text-slate-300 border-slate-700';
 
+  // Status visual map
+  const statusVisualMap: Record<
+    RoadStatus,
+    { badgeClass: string; icon: React.ComponentType<{ className?: string }> }
+  > = {
+    未確認: {
+      badgeClass: 'bg-amber-950/70 border-amber-700/70 text-amber-300',
+      icon: AlertCircle,
+    },
+    全線暢通: {
+      badgeClass: 'bg-emerald-950/70 border-emerald-700/70 text-emerald-300',
+      icon: CheckCircle2,
+    },
+    部分封閉: {
+      badgeClass: 'bg-orange-950/70 border-orange-700/70 text-orange-300',
+      icon: AlertTriangle,
+    },
+    交通管制: {
+      badgeClass: 'bg-blue-950/70 border-blue-700/70 text-blue-300',
+      icon: ShieldAlert,
+    },
+    全線封閉: {
+      badgeClass: 'bg-rose-950/70 border-rose-700/70 text-rose-300',
+      icon: XCircle,
+    },
+  };
+
+  const currentVisual = statusVisualMap[road.status] || statusVisualMap['未確認'];
+  const StatusIcon = currentVisual.icon;
+
+  const isCustomUpdated = road.lastUpdated !== '未確認';
+
   return (
-    <div
-      onClick={() => setIsExpanded(!isExpanded)}
-      className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 hover:bg-slate-850 hover:border-slate-700 transition-all duration-200 cursor-pointer shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden"
-    >
+    <div className="group relative rounded-2xl border border-slate-800 bg-slate-900/90 hover:border-slate-700 transition-all duration-200 shadow-sm hover:shadow-md flex flex-col justify-between overflow-hidden">
       {/* Top Header Section */}
       <div className="p-4 sm:p-5 pb-3">
         <div className="flex items-start justify-between gap-3 mb-2.5">
@@ -43,23 +87,69 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road }) => {
             </span>
           </div>
 
-          {/* Status Badge */}
-          <div className="shrink-0">
-            <span className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg bg-amber-950/60 border border-amber-700/60 text-amber-300">
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
-              {road.status}
-            </span>
+          {/* 方案 B: 手動修改開放狀態下拉選擇器 */}
+          <div
+            className="shrink-0 relative"
+            title="手動修改開放狀態（會即時儲存至瀏覽器）"
+          >
+            <div className="flex items-center gap-1.5">
+              <label htmlFor={`status-select-${road.id}`} className="sr-only">
+                修改狀態
+              </label>
+              <div className="relative">
+                <select
+                  id={`status-select-${road.id}`}
+                  value={road.status}
+                  onChange={(e) => onStatusChange(road.id, e.target.value as RoadStatus)}
+                  className={`text-xs font-semibold pl-2.5 pr-7 py-1 rounded-lg border appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all ${currentVisual.badgeClass}`}
+                >
+                  {STATUS_LIST.map((st) => (
+                    <option key={st} value={st} className="bg-slate-900 text-slate-100 py-1">
+                      {st}
+                    </option>
+                  ))}
+                </select>
+                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-2 text-current opacity-70">
+                  <Edit3 className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Road Name */}
-        <h2 className="text-lg font-bold text-slate-100 group-hover:text-emerald-300 transition-colors tracking-tight">
-          {road.name}
-        </h2>
+        {/* 展開說明規則：直接點擊「林道名稱」展開/收合，名稱旁邊加小箭頭提示 */}
+        <div className="flex items-baseline justify-between gap-2 mt-1">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex items-center gap-1.5 text-left group/title cursor-pointer focus:outline-none focus:ring-1 focus:ring-emerald-500 rounded-lg py-0.5 transition-colors"
+            title={isExpanded ? '點擊收合說明' : '點擊林道名稱展開說明'}
+            aria-expanded={isExpanded}
+          >
+            <h2 className="text-lg font-bold text-slate-100 group-hover/title:text-emerald-300 transition-colors tracking-tight">
+              {road.name}
+            </h2>
+            <span
+              className="text-slate-400 group-hover/title:text-emerald-400 inline-flex items-center transition-transform duration-200"
+              aria-hidden="true"
+            >
+              {isExpanded ? (
+                <ChevronUp className="w-4 h-4 text-emerald-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-slate-400 group-hover/title:text-emerald-400" />
+              )}
+            </span>
+          </button>
+
+          <span className="text-[11px] text-slate-500 font-medium shrink-0 flex items-center gap-1">
+            <StatusIcon className="w-3 h-3 text-current" />
+            <span>{road.status}</span>
+          </span>
+        </div>
       </div>
 
-      {/* Meta Information Grid */}
-      <div className="px-4 sm:px-5 py-3 border-t border-b border-slate-800/70 bg-slate-950/40 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-300">
+      {/* Meta Information Grid (只顯示：起點、可通行里程、電話、最後更新時間) */}
+      <div className="px-4 sm:px-5 py-3 border-t border-slate-800/70 bg-slate-950/40 grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs text-slate-300">
         {/* 起點位置 */}
         <div className="flex items-start gap-2">
           <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
@@ -94,30 +184,16 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road }) => {
           <Clock className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
           <div>
             <span className="text-slate-500 block text-[11px]">最後更新時間</span>
-            <span className="font-medium text-slate-200">{road.lastUpdated}</span>
+            <span className={`font-medium ${isCustomUpdated ? 'text-emerald-300 font-mono text-[11px]' : 'text-slate-200'}`}>
+              {road.lastUpdated}
+            </span>
           </div>
         </div>
       </div>
 
-      {/* Accordion Expand Action Bar */}
-      <div className="px-4 sm:px-5 py-2.5 flex items-center justify-between text-xs text-slate-400 group-hover:text-slate-200 transition-colors">
-        <span className="inline-flex items-center gap-1.5 font-medium">
-          <FileText className="w-3.5 h-3.5 text-emerald-400" />
-          {isExpanded ? '收合簡單說明' : '點擊查看簡單說明'}
-        </span>
-        {isExpanded ? (
-          <ChevronUp className="w-4 h-4 text-emerald-400" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-slate-500 group-hover:text-slate-300" />
-        )}
-      </div>
-
-      {/* Expanded Description Drawer */}
+      {/* Expanded Description Drawer (卡片底部無額外展開按鈕，由林道名稱點擊觸發) */}
       {isExpanded && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="px-4 sm:px-5 py-3.5 bg-slate-950/80 border-t border-slate-800 text-xs text-slate-300 space-y-2 animate-fadeIn"
-        >
+        <div className="px-4 sm:px-5 py-3.5 bg-slate-950/80 border-t border-slate-800 text-xs text-slate-300 space-y-2 animate-fadeIn">
           <div className="space-y-1">
             <h4 className="font-semibold text-emerald-400">林道概況說明</h4>
             <p className="text-slate-300/90 leading-relaxed">{road.description}</p>
@@ -125,7 +201,7 @@ export const RoadCard: React.FC<RoadCardProps> = ({ road }) => {
           <div className="pt-2 border-t border-slate-800/80 flex items-start gap-1.5 text-[11px] text-slate-400">
             <AlertCircle className="w-3.5 h-3.5 text-amber-400/80 shrink-0 mt-0.5" />
             <span>
-              亞馬遜國家山岳協會提醒：山區林道易因降雨崩塌，入山前請務必向{road.branch}洽詢最新現地管制公告。
+              亞馬遜國家山岳協會提醒：山區林道易因降雨崩塌，入山前請向{road.branch}核實當天路況。
             </span>
           </div>
         </div>

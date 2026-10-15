@@ -11,9 +11,9 @@ export type BranchName =
 export type RoadStatus =
   | '未確認'
   | '全線暢通'
-  | '預警性封閉'
-  | '災損封閉'
-  | '管制通行';
+  | '部分封閉'
+  | '交通管制'
+  | '全線封閉';
 
 export interface ForestRoad {
   id: number;
@@ -41,9 +41,9 @@ export const BRANCH_LIST: BranchName[] = [
 export const STATUS_LIST: RoadStatus[] = [
   '未確認',
   '全線暢通',
-  '預警性封閉',
-  '災損封閉',
-  '管制通行',
+  '部分封閉',
+  '交通管制',
+  '全線封閉',
 ];
 
 export const FOREST_ROADS_DATA: ForestRoad[] = [

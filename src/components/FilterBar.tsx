@@ -1,7 +1,7 @@
 import React from 'react';
 import { BranchName, RoadStatus } from '../types';
 import { BRANCH_LIST, STATUS_LIST } from '../data/forestRoads';
-import { Search, X, RotateCcw, Filter } from 'lucide-react';
+import { Search, X, RotateCcw, Filter, Trash2 } from 'lucide-react';
 
 interface FilterBarProps {
   searchQuery: string;
@@ -13,6 +13,8 @@ interface FilterBarProps {
   branchCounts: Record<BranchName | '全部', number>;
   onResetFilters: () => void;
   totalFilteredCount: number;
+  modifiedCount: number;
+  onResetAllToUnconfirmed: () => void;
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -25,6 +27,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   branchCounts,
   onResetFilters,
   totalFilteredCount,
+  modifiedCount,
+  onResetAllToUnconfirmed,
 }) => {
   const isFiltered = searchQuery !== '' || selectedBranch !== '全部' || selectedStatus !== '全部';
 
@@ -47,7 +51,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <button
               type="button"
               onClick={() => onSearchChange('')}
-              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200"
+              className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-200 cursor-pointer"
               title="清除搜尋"
             >
               <X className="w-4 h-4" />
@@ -55,10 +59,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           )}
         </div>
 
-        <div className="flex items-center gap-2 justify-between sm:justify-end">
+        {/* Filter controls & Reset all button */}
+        <div className="flex flex-wrap items-center gap-2 justify-between sm:justify-end">
           <span className="text-xs text-slate-400 font-medium">
             符合條件：<strong className="text-emerald-400 font-bold">{totalFilteredCount}</strong> 條
           </span>
+
           {isFiltered && (
             <button
               type="button"
@@ -69,6 +75,26 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               重設篩選
             </button>
           )}
+
+          {/* 方案 B: 重設全部為未確認 按鈕 */}
+          <button
+            type="button"
+            onClick={onResetAllToUnconfirmed}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors cursor-pointer ${
+              modifiedCount > 0
+                ? 'bg-rose-950/60 hover:bg-rose-900/70 text-rose-300 border-rose-800/80 shadow-sm'
+                : 'bg-slate-800/60 hover:bg-slate-800 text-slate-400 border-slate-700/60'
+            }`}
+            title="清除瀏覽器儲存的手動狀態記錄，將 83 條林道全部恢復為未確認"
+          >
+            <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+            <span>重設全部為未確認</span>
+            {modifiedCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-rose-900 text-rose-200 text-[10px] font-mono">
+                已自訂 {modifiedCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 

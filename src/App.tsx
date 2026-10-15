@@ -1,11 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { FOREST_ROADS_DATA, BRANCH_LIST, STATUS_LIST, BranchName, RoadStatus } from './data/forestRoads';
+import { FOREST_ROADS_DATA, BranchName, RoadStatus } from './data/forestRoads';
 import { Header } from './components/Header';
 import { StatusSummary } from './components/StatusSummary';
 import { FilterBar } from './components/FilterBar';
 import { RoadCard } from './components/RoadCard';
 import { Footer } from './components/Footer';
-import { SearchX, ArrowUp } from 'lucide-react';
+import { SearchX, ArrowUp, CheckCircle } from 'lucide-react';
+
+const LOCAL_STORAGE_KEY = 'amazon_mountain_forest_roads_status_v1';
 
 export default function App() {
   const [darkMode, setDarkMode] = useState<boolean>(true);
@@ -13,6 +15,22 @@ export default function App() {
   const [selectedBranch, setSelectedBranch] = useState<BranchName | '全部'>('全部');
   const [selectedStatus, setSelectedStatus] = useState<RoadStatus | '全部'>('全部');
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // 方案 B: 從 localStorage 讀取先前手動記錄之開放狀態
+  const [customStatusMap, setCustomStatusMap] = useState<
+    Record<number, { status: RoadStatus; updatedAt: string }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error('Failed to load saved road status from localStorage', e);
+    }
+    return {};
+  });
 
   // Toggle dark mode class on html tag
   useEffect(() => {
@@ -36,10 +54,88 @@ export default function App() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // Show a temporary toast notification when saved
+  const triggerToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => {
+      setToastMessage((current) => (current === msg ? null : current));
+    }, 2500);
+  };
+
+  // 方案 B: 手動修改狀態並立刻寫入 localStorage
+  const handleStatusChange = (id: number, newStatus: RoadStatus) => {
+    const targetRoad = FOREST_ROADS_DATA.find((r) => r.id === id);
+    const now = new Date();
+    const timeStr = `${now.getFullYear()}/${String(now.getMonth() + 1).padStart(2, '0')}/${String(
+      now.getDate()
+    ).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}`;
+
+    setCustomStatusMap((prev) => {
+      const next = { ...prev };
+      if (newStatus === '未確認') {
+        delete next[id];
+      } else {
+        next[id] = {
+          status: newStatus,
+          updatedAt: `${timeStr} (手動記錄)`,
+        };
+      }
+      try {
+        localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(next));
+      } catch (e) {
+        console.error('Failed to save to localStorage', e);
+      }
+      return next;
+    });
+
+    if (targetRoad) {
+      triggerToast(`已更新「${targetRoad.name}」為【${newStatus}】並儲存至瀏覽器`);
+    }
+  };
+
+  // 方案 B: 重設全部為未確認（清除 localStorage）
+  const handleResetAllToUnconfirmed = () => {
+    const count = Object.keys(customStatusMap).length;
+    if (count === 0) {
+      triggerToast('目前所有 83 條林道皆已為初始「未確認」狀態');
+      return;
+    }
+
+    if (
+      window.confirm(
+        `確定要重設全部 83 條林道為「未確認」嗎？\n這將清除您在瀏覽器中儲存的 ${count} 筆自訂開放狀態。`
+      )
+    ) {
+      try {
+        localStorage.removeItem(LOCAL_STORAGE_KEY);
+      } catch (e) {
+        console.error(e);
+      }
+      setCustomStatusMap({});
+      triggerToast('已清除全部自訂狀態，83 條林道皆恢復為「未確認」');
+    }
+  };
+
+  // Combine initial official dataset with custom status map from localStorage
+  const roadsWithStatus = useMemo(() => {
+    return FOREST_ROADS_DATA.map((road) => {
+      const custom = customStatusMap[road.id];
+      if (custom) {
+        return {
+          ...road,
+          status: custom.status,
+          lastUpdated: custom.updatedAt,
+        };
+      }
+      return road;
+    });
+  }, [customStatusMap]);
+
   // Compute status counts for the top status cards based on current branch/search or all
   const statusCounts = useMemo(() => {
-    // When computing status breakdown, let's look at the roads filtered by branch & search (so status chip shows relevant count)
-    const baseList = FOREST_ROADS_DATA.filter((road) => {
+    const baseList = roadsWithStatus.filter((road) => {
       const matchBranch = selectedBranch === '全部' || road.branch === selectedBranch;
       const matchSearch =
         !searchQuery.trim() ||
@@ -52,9 +148,9 @@ export default function App() {
       全部: baseList.length,
       未確認: 0,
       全線暢通: 0,
-      預警性封閉: 0,
-      災損封閉: 0,
-      管制通行: 0,
+      部分封閉: 0,
+      交通管制: 0,
+      全線封閉: 0,
     };
 
     baseList.forEach((road) => {
@@ -62,12 +158,12 @@ export default function App() {
     });
 
     return counts;
-  }, [selectedBranch, searchQuery]);
+  }, [roadsWithStatus, selectedBranch, searchQuery]);
 
   // Compute branch counts for the filter chips
   const branchCounts = useMemo(() => {
     const counts: Record<BranchName | '全部', number> = {
-      全部: FOREST_ROADS_DATA.length,
+      全部: roadsWithStatus.length,
       宜蘭分署: 0,
       新竹分署: 0,
       臺中分署: 0,
@@ -78,16 +174,16 @@ export default function App() {
       花蓮分署: 0,
     };
 
-    FOREST_ROADS_DATA.forEach((road) => {
+    roadsWithStatus.forEach((road) => {
       counts[road.branch] = (counts[road.branch] || 0) + 1;
     });
 
     return counts;
-  }, []);
+  }, [roadsWithStatus]);
 
   // Filtered roads list
   const filteredRoads = useMemo(() => {
-    return FOREST_ROADS_DATA.filter((road) => {
+    return roadsWithStatus.filter((road) => {
       // Branch filter
       if (selectedBranch !== '全部' && road.branch !== selectedBranch) {
         return false;
@@ -110,7 +206,7 @@ export default function App() {
 
       return true;
     });
-  }, [selectedBranch, selectedStatus, searchQuery]);
+  }, [roadsWithStatus, selectedBranch, selectedStatus, searchQuery]);
 
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -121,6 +217,8 @@ export default function App() {
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
+
+  const modifiedCount = Object.keys(customStatusMap).length;
 
   return (
     <div
@@ -134,17 +232,29 @@ export default function App() {
       {/* Main Content Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-12">
         {/* Brand Banner / Subtitle */}
-        <div className="mb-6 pb-4 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-end justify-between gap-2">
+        <div className="mb-6 pb-4 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-end justify-between gap-3">
           <div>
-            <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
-              林業及自然保育署 83 條官方列管林道
-            </h2>
-            <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              由亞馬遜國家山岳協會彙整維護。依據官方查驗原則，當前狀態均嚴格列為「未確認」，杜絕虛構路況。
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-xl sm:text-2xl font-bold tracking-tight">
+                林業及自然保育署 83 條官方列管林道
+              </h2>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
+              亞馬遜國家山岳協會維護。初始狀態均嚴格列為「未確認」以杜絕假資料；支援即時手動標記並自動記住於瀏覽器，或一鍵查閱林保署官方最新通報。
             </p>
           </div>
-          <div className="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 shrink-0 self-start sm:self-auto">
-            全台官方林道：<strong className="text-emerald-400">{FOREST_ROADS_DATA.length}</strong> 條
+
+          <div className="flex items-center gap-2 shrink-0">
+            {modifiedCount > 0 ? (
+              <div className="text-xs font-mono text-emerald-300 bg-emerald-950/70 border border-emerald-800/80 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span>已記住 {modifiedCount} 條狀態</span>
+              </div>
+            ) : (
+              <div className="text-xs font-mono text-slate-400 bg-slate-900 px-3 py-1.5 rounded-xl border border-slate-800">
+                初始未確認：<strong className="text-amber-400">83</strong> 條
+              </div>
+            )}
           </div>
         </div>
 
@@ -153,7 +263,7 @@ export default function App() {
           statusCounts={statusCounts}
           selectedStatus={selectedStatus}
           onSelectStatus={setSelectedStatus}
-          totalOfficialCount={FOREST_ROADS_DATA.length}
+          totalOfficialCount={roadsWithStatus.length}
         />
 
         {/* Filter and Search Bar */}
@@ -167,13 +277,19 @@ export default function App() {
           branchCounts={branchCounts}
           onResetFilters={handleResetFilters}
           totalFilteredCount={filteredRoads.length}
+          modifiedCount={modifiedCount}
+          onResetAllToUnconfirmed={handleResetAllToUnconfirmed}
         />
 
         {/* Road Cards Grid */}
         {filteredRoads.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
             {filteredRoads.map((road) => (
-              <RoadCard key={road.id} road={road} />
+              <RoadCard
+                key={road.id}
+                road={road}
+                onStatusChange={handleStatusChange}
+              />
             ))}
           </div>
         ) : (
@@ -183,7 +299,7 @@ export default function App() {
               找不到符合條件的林道
             </h3>
             <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-              目前篩選條件下無符合之官方林道，請嘗試清除關鍵字搜尋或更換分署別。
+              目前篩選條件下無符合之官方林道，請嘗試清除關鍵字搜尋或更換狀態與分署別。
             </p>
             <button
               type="button"
@@ -195,6 +311,14 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 border border-emerald-500/80 text-emerald-200 text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-xl shadow-slate-950/80 flex items-center gap-2 animate-fadeIn pointer-events-none">
+          <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
 
       {/* Back to top button */}
       {showScrollTop && (
