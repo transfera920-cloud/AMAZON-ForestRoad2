@@ -331,7 +331,7 @@ export default function App() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-              亞馬遜國家山岳協會維護。開放狀態即時取自林保署公告；查無資料者列為「未確認」，也可手動標記並記住於瀏覽器。
+              開放狀態即時取自林保署公告；查無資料者列為「未確認」，也可手動標記並記住於瀏覽器。
             </p>
             <a
               href="https://transfer.amazon-hike.com/"
