@@ -12,6 +12,7 @@
     <meta property="og:description" content="林業及自然保育署官方列管 83 條林道最新通行狀況查詢，行前掌握林道開放、管制與封閉資訊。" />
     <meta property="og:url" content="https://forestroad.amazon-hike.com/" />
     <meta property="og:site_name" content="亞馬遜國家山岳協會" />
+    <meta property="og:locale" content="zh_TW" />
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://forestroad.amazon-hike.com/images/og-cover.jpg" />
     <meta property="og:image:width" content="1200" />
@@ -23,12 +24,62 @@
     <meta name="twitter:description" content="林業及自然保育署官方列管 83 條林道最新通行狀況查詢。" />
     <meta name="twitter:image" content="https://forestroad.amazon-hike.com/images/og-cover.jpg" />
 
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "WebApplication",
+          "@id": "https://forestroad.amazon-hike.com/#app",
+          "name": "台灣林道通行狀況查詢",
+          "url": "https://forestroad.amazon-hike.com/",
+          "description": "收錄林業及自然保育署官方列管 83 條林道的通報資訊，行前查詢林道開放、管制與封閉狀態。本站為資訊整理，實際以林業及自然保育署公告為準。",
+          "applicationCategory": "TravelApplication",
+          "operatingSystem": "Web",
+          "inLanguage": "zh-TW",
+          "isAccessibleForFree": true,
+          "provider": {
+            "@type": "Organization",
+            "@id": "https://amazon-hike.com/#organization",
+            "name": "亞馬遜國家山岳協會",
+            "url": "https://amazon-hike.com/"
+          },
+          "isBasedOn": "https://www.forest.gov.tw/0003286",
+          "relatedLink": [
+            "https://road.amazon-hike.com/",
+            "https://transfer.amazon-hike.com/"
+          ]
+        },
+        {
+          "@type": "BreadcrumbList",
+          "itemListElement": [
+            { "@type": "ListItem", "position": 1, "name": "亞馬遜國家山岳協會", "item": "https://amazon-hike.com/" },
+            { "@type": "ListItem", "position": 2, "name": "台灣林道通行狀況", "item": "https://forestroad.amazon-hike.com/" }
+          ]
+        }
+      ]
+    }
+    </script>
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet" />
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased min-h-screen" style="font-family: 'Noto Sans TC', system-ui, -apple-system, sans-serif;">
     <div id="root"></div>
+    <noscript>
+      <main style="padding:24px;color:#e2e8f0">
+        <h1>台灣林道通行狀況查詢</h1>
+        <p>亞馬遜國家山岳協會整理林業及自然保育署官方列管 83 條林道的通報資訊，行前可查詢林道開放、管制與封閉狀態。實際管制以林業及自然保育署公告為準。</p>
+        <ul>
+          <li><a href="https://www.forest.gov.tw/0003286">林業及自然保育署：林道通行公告</a></li>
+          <li><a href="https://road.amazon-hike.com/">登山路況與道路管制查詢</a></li>
+          <li><a href="https://transfer.amazon-hike.com/">亞馬遜高山接駁：登山口包車接送</a></li>
+          <li><a href="https://amazon-hike.com/">亞馬遜國家山岳協會</a></li>
+        </ul>
+        <p>此頁面需要啟用 JavaScript 才能顯示完整林道清單。</p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

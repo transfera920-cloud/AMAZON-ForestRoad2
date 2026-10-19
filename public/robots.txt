@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://transfer.amazon-hike.com/sitemap.xml
+Sitemap: https://forestroad.amazon-hike.com/sitemap.xml

@@ -8,9 +8,12 @@ export const Footer: React.FC = () => {
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <Mountain className="w-4 h-4 text-emerald-400" />
-            <span className="font-semibold text-slate-200">
-              亞馬遜國家山岳協會 Amazon National Mountain Association
-            </span>
+            <a
+              href="https://amazon-hike.com/"
+              className="font-semibold text-slate-200 hover:text-emerald-300 hover:underline underline-offset-4 transition-colors"
+            >
+              亞馬遜國家山岳協會 Amazon Alpine Association
+            </a>
           </div>
           <div className="flex items-center gap-2 text-[11px] text-slate-500">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
