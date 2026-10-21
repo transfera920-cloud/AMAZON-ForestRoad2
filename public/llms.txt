@@ -5,7 +5,16 @@
 營運單位：亞馬遜國家山岳協會（https://amazon-hike.com/）
 官方資料來源：林業及自然保育署 https://www.forest.gov.tw/0003286
 
-## 相關網站
-- [亞馬遜國家山岳協會（登山教學、百岳介紹、活動）](https://amazon-hike.com/)
-- [登山路況與道路管制查詢](https://road.amazon-hike.com/)
-- [亞馬遜高山接駁（登山接駁、百岳包車）](https://transfer.amazon-hike.com/)
+## 亞馬遜網站群（互相連結）
+- [亞馬遜國家山岳協會](https://amazon-hike.com/)：登山入門教學、百岳介紹、活動行事曆
+- [亞馬遜高山接駁](https://transfer.amazon-hike.com/)：全台百岳與高山步道登山口包車接送
+- [登山接駁費用試算](https://price.amazon-hike.com/)：輸入起點與登山口試算預估包車費用
+- [郡大山・西巒大山接駁與共乘](https://shuttle.amazon-hike.com/)：郡大林道四驅接駁、單日共乘、整車費用
+- [D0 登山口住宿查詢](https://stays.amazon-hike.com/trailhead-stays)：以 Google 地圖查詢登山口附近住宿與駕車時間
+- [下山慶功宴查詢](https://feast.amazon-hike.com/)：登山口附近餐廳與補給搜尋
+- [登山路況與道路管制查詢](https://road.amazon-hike.com/)：省道、林道、國家公園官方路況入口整理
+- [登山出團氣象確認清單](https://weather.amazon-hike.com/)：出團前特報、預報、雷達與降雨檢查清單
+
+## 營運說明
+亞馬遜高山接駁與亞馬遜國家山岳協會由同一位經營者營運，是兩個獨立單位；接駁、價格、住宿、餐廳與路況工具歸屬亞馬遜高山接駁網站群，登山教學與百岳介紹歸屬亞馬遜國家山岳協會。
+各站資訊為整理與估算，實際路況、管制、價格與房況以官方公告或 LINE 專人回覆為準。

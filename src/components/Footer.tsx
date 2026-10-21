@@ -31,6 +31,12 @@ export const Footer: React.FC = () => {
             <Mountain className="w-3.5 h-3.5" />
             亞馬遜高山接駁：百岳、高山登山口包車接送 →
           </a>
+          <p className="mt-2 text-[11px] text-slate-500">
+            相關：
+            <a href="https://road.amazon-hike.com/" className="underline underline-offset-4">登山路況與道路管制查詢</a>
+            {' ｜ '}
+            <a href="https://weather.amazon-hike.com/" className="underline underline-offset-4">登山出團氣象確認清單</a>
+          </p>
         </div>
 
         <div className="border-t border-slate-800/60 pt-4 text-center sm:text-left text-slate-500 leading-relaxed text-[11px] space-y-1">
